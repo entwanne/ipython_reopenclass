@@ -1,41 +1,25 @@
 import ast
 
 reopen_node, = ast.parse('[...]').body
-_classes = {}
-
-
-def register_class(name, bases, dict):
-    cls = type(name, bases, dict)
-    _classes[cls.__module__, cls.__name__] = cls
-    return cls
-
-
-def reopen_class(name, bases, dict):
-    base = _classes.get((dict.get('__module__'), name))
-    if base is not None:
-        bases += (base,)
-
-    return register_class(name, bases, dict)
+ellipsis = ast.Constant(value=...)
+_class_bases = {}
+_class_defs = {}
 
 
 class ClassWrapper(ast.NodeTransformer):
     def visit_ClassDef(self, node):
-        node.keywords.append(ast.keyword(
-            arg='metaclass',
-            value=ast.Name(
-                id=(
-                    'reopen_class'
-                    if node.body and ast.dump(node.body[0]) == ast.dump(reopen_node)
-                    else 'register_class'
-                ),
-                ctx=ast.Load(),
-            ),
-        ))
+        if node.bases:
+            if ast.dump(node.bases[0]) == ast.dump(ellipsis):
+                node.bases[:1] = _class_bases.get(node.name, [])
+            _class_bases[node.name] = node.bases
+        if node.body:
+            if ast.dump(node.body[0]) == ast.dump(reopen_node):
+                node.body = _class_defs.get(node.name, []) + node.body
+            _class_defs[node.name] = node.body
         return node
 
 
 def load_ipython_extension(ipython):
-    ipython.push({'register_class': register_class, 'reopen_class': reopen_class})
     ipython.ast_transformers.append(ClassWrapper())
 
 
