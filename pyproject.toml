@@ -1,3 +1,9 @@
 [project]
 name = "ipython_reopenclass"
 version = "1.0"
+
+[project.optional-dependencies]
+dev = [
+    "ipython",
+    "pytest",
+]
