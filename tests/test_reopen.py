@@ -68,13 +68,19 @@ def test_reopen(shell):
     assert isinstance(obj2, cls2)
     assert not isinstance(obj2, cls)
 
-    assert shell['obj'] is obj
+    assert shell['obj'] is not obj
     assert not isinstance(obj, cls2)
+    obj = shell['obj']
+    assert isinstance(obj, cls2)
+    assert not isinstance(obj, cls)
 
     assert obj2.foo() == 'foo1'
     assert obj2.bar() == 'bar2'
     assert obj2.baz() == 'baz2'
-    assert obj.bar() == 'bar1'
+
+    assert obj.foo() == 'foo1'
+    assert obj.bar() == 'bar2'
+    assert obj.baz() == 'baz2'
 
 
 def test_subclasses(shell):
