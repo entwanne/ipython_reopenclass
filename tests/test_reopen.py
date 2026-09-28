@@ -8,8 +8,8 @@ class Shell:
     def __init__(self):
         self.ipython = IPython.InteractiveShell()
 
-    def run(self, cmd, **meta):
-        result = self.ipython.run_cell(textwrap.dedent(cmd), cell_meta=meta)
+    def run(self, cmd):
+        result = self.ipython.run_cell(textwrap.dedent(cmd))
         assert not result.error_in_exec
 
     def __getitem__(self, name):
@@ -99,17 +99,24 @@ def test_subclasses(shell):
 
 def test_replay(shell):
     shell.run('''
+    [...]
     class A:
         name = 'A'
         foo = 'foo1'
-    ''', replay=True)
+    ''')
 
     shell.run('obj1 = A()')
-    shell.run('obj2 = A()', replay=True)
+    shell.run('''
+    [...]
+    obj2 = A()
+    ''')
 
     assert shell['obj1'].name == 'A'
     assert shell['obj1'].foo == 'foo1'
     assert shell['obj2'].foo == 'foo1'
+
+    assert type(shell['obj1']) is not shell['A']
+    assert type(shell['obj2']) is shell['A']
 
     shell.run('''
     class A:
@@ -123,18 +130,25 @@ def test_replay(shell):
     assert shell['obj3'].name == 'A'
     assert shell['obj3'].foo == 'foo2'
 
+    assert type(shell['obj2']) is shell['A']
+    assert type(shell['obj3']) is not shell['A']
+
     shell.run('''
+    [...]
     class A:
         [...]
         foo = 'foo3'
     obj4 = A()
-    ''', replay=True)
+    ''')
 
     assert shell['obj1'].foo == 'foo1'
     assert shell['obj2'].foo == 'foo3'
     assert shell['obj3'].foo == 'foo2'
     assert shell['obj4'].name == 'A'
     assert shell['obj4'].foo == 'foo3'
+
+    assert type(shell['obj2']) is shell['A']
+    assert type(shell['obj4']) is shell['A']
 
     shell.run('''
     class A:
@@ -148,11 +162,15 @@ def test_replay(shell):
     assert shell['obj4'].foo == 'foo3'
     assert not hasattr(shell['obj5'], 'foo')
 
+    assert type(shell['obj2']) is shell['A']
+    assert type(shell['obj5']) is not shell['A']
+
     shell.run('''
+    [...]
     class A:
         pass
     obj6 = A()
-    ''', replay=True)
+    ''')
 
     assert shell['obj1'].foo == 'foo1'
     assert not hasattr(shell['obj2'], 'foo')
@@ -160,3 +178,6 @@ def test_replay(shell):
     assert not hasattr(shell['obj4'], 'foo')
     assert not hasattr(shell['obj5'], 'foo')
     assert not hasattr(shell['obj6'], 'foo')
+
+    assert type(shell['obj2']) is shell['A']
+    assert type(shell['obj6']) is shell['A']
