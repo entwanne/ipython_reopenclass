@@ -95,3 +95,89 @@ def test_subclasses(shell):
         pass
     ''')
     assert shell['C'].__bases__ == (int,)
+
+
+def test_replay(shell):
+    shell.run('''
+    [...]
+    class A:
+        name = 'A'
+        foo = 'foo1'
+    ''')
+
+    shell.run('obj1 = A()')
+    shell.run('''
+    [...]
+    obj2 = A()
+    ''')
+
+    assert shell['obj1'].name == 'A'
+    assert shell['obj1'].foo == 'foo1'
+    assert shell['obj2'].foo == 'foo1'
+
+    assert type(shell['obj1']) is not shell['A']
+    assert type(shell['obj2']) is shell['A']
+
+    shell.run('''
+    class A:
+        [...]
+        foo = 'foo2'
+    obj3 = A()
+    ''')
+
+    assert shell['obj1'].foo == 'foo1'
+    assert shell['obj2'].foo == 'foo1'
+    assert shell['obj3'].name == 'A'
+    assert shell['obj3'].foo == 'foo2'
+
+    assert type(shell['obj2']) is shell['A']
+    assert type(shell['obj3']) is not shell['A']
+
+    shell.run('''
+    [...]
+    class A:
+        [...]
+        foo = 'foo3'
+    obj4 = A()
+    ''')
+
+    assert shell['obj1'].foo == 'foo1'
+    assert shell['obj2'].foo == 'foo3'
+    assert shell['obj3'].foo == 'foo2'
+    assert shell['obj4'].name == 'A'
+    assert shell['obj4'].foo == 'foo3'
+
+    assert type(shell['obj2']) is shell['A']
+    assert type(shell['obj4']) is shell['A']
+
+    shell.run('''
+    class A:
+        pass
+    obj5 = A()
+    ''')
+
+    assert shell['obj1'].foo == 'foo1'
+    assert shell['obj2'].foo == 'foo3'
+    assert shell['obj3'].foo == 'foo2'
+    assert shell['obj4'].foo == 'foo3'
+    assert not hasattr(shell['obj5'], 'foo')
+
+    assert type(shell['obj2']) is shell['A']
+    assert type(shell['obj5']) is not shell['A']
+
+    shell.run('''
+    [...]
+    class A:
+        pass
+    obj6 = A()
+    ''')
+
+    assert shell['obj1'].foo == 'foo1'
+    assert not hasattr(shell['obj2'], 'foo')
+    assert shell['obj3'].foo == 'foo2'
+    assert not hasattr(shell['obj4'], 'foo')
+    assert not hasattr(shell['obj5'], 'foo')
+    assert not hasattr(shell['obj6'], 'foo')
+
+    assert type(shell['obj2']) is shell['A']
+    assert type(shell['obj6']) is shell['A']
