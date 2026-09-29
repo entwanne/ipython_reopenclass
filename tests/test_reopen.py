@@ -96,6 +96,19 @@ def test_subclasses(shell):
     ''')
     assert shell['C'].__bases__ == (int,)
 
+    shell.run('''
+    class D:
+        pass
+
+    class E(D):
+        pass
+    ''')
+    shell.run('''
+    class D(...):
+        attr = 'test'
+    ''')
+    assert shell['E'].attr == 'test'
+
 
 def test_replay(shell):
     shell.run('''
@@ -181,3 +194,33 @@ def test_replay(shell):
 
     assert type(shell['obj2']) is shell['A']
     assert type(shell['obj6']) is shell['A']
+
+
+def test_end_value(shell):
+    shell.run('1')
+    assert shell['_'] == 1
+
+    # do not replace _ as cell has no end value
+    shell.run('2; x = 3')
+    assert shell['_'] == 1
+
+    shell.run('''
+    4
+    5
+    ''')
+    assert shell['_'] == 5
+
+    # do not get value of replay module
+    shell.run('''
+    [...]
+    6
+    ''')
+    assert shell['_'] == 5
+
+    # Get value of the cell, not the one from replay module
+    shell.run('7')
+    assert shell['_'] == 7
+
+    # Cell does not end with an expression -> returns the last expr of the replay module
+    shell.run('8; x = 9')
+    assert shell['_'] == 7

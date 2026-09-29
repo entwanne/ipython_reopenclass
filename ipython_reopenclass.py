@@ -1,4 +1,5 @@
 import ast
+import itertools
 
 reopen_node, = ast.parse('[...]').body
 ellipsis = ast.Constant(value=...)
@@ -16,17 +17,49 @@ class Reopener(ast.NodeTransformer):
         self.replay_module = ast.Module()
         self.replay_rewriter = Rewriter(self.classes, self.functions)
 
+    @staticmethod
+    def _get_next_id(_seq=itertools.count(1)):
+        return next(_seq)
+
     def visit_Module(self, node):
         self.replay = (node.body and ast.dump(node.body[0]) == ast.dump(reopen_node))
         self.append_nodes = []
+
         # Visit the nodes of the module (to register functions/classes if any)
         module = self.generic_visit(node)
+
         if self.replay:
             self.replay_module.body.extend(module.body)
             self.replay_module = self.replay_rewriter.visit(self.replay_module)
             module.body.clear()
+
+        # Do not end with the expression of the replay_module
+        end_body = []
+        if self.append_nodes or self.replay_module.body:
+            last_stmt = ast.Pass()
+            ast.fix_missing_locations(last_stmt)
+            end_body.append(last_stmt)
+
+        # Still end the cell with the value of the last expression if any
+        if module.body and isinstance(module.body[-1], ast.Expr) and (self.append_nodes or self.replay_module.body):
+            output_name = f'__cell_output_{self._get_next_id()}'
+            module.body[-1] = ast.Assign(
+                targets=[ast.Name(id=output_name, ctx=ast.Store())],
+                value=module.body[-1].value,
+            )
+            ast.fix_missing_locations(module.body[-1])
+            last_value = ast.Expr(value=ast.Name(id=output_name))
+            ast.fix_missing_locations(last_value)
+            end_body.append(last_value)
+
         # Prepend the body of replay_module to all cells
-        module.body = [*module.body, *self.append_nodes, *self.replay_module.body]
+        module.body = [
+            *module.body,
+            *self.append_nodes,
+            *self.replay_module.body,
+            *end_body,
+        ]
+
         self.replay = False
         return module
 
@@ -70,10 +103,12 @@ class Reopener(ast.NodeTransformer):
         # Replace existing function definition if any
         existing_node = self.functions.get(node.name)
         self.functions[node.name] = node
+
         if self.replay and existing_node:
             # returns None because replay_module already contains the definition
             # so we don't want to duplicate it
             return None
+
         return node
 
 
